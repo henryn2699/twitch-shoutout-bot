@@ -49,7 +49,7 @@ app.get('/shoutout/:username', async (req, res) => {
   try {
     const token = await getAccessToken();
 
-    // Fetch user info
+    // Get user info
     const userRes = await axios.get('https://api.twitch.tv/helix/users', {
       headers: {
         'Client-ID': CLIENT_ID,
@@ -65,6 +65,42 @@ app.get('/shoutout/:username', async (req, res) => {
     const user = userRes.data.data[0];
     const about = user.description ? safeTrim(user.description, 100) : 'an awesome streamer!';
 
-    // Fetch videos
-    const videosRes = await axios.get('https://api.twitch.tv
+    // Get video titles
+    const vidsRes = await axios.get('https://api.twitch.tv/helix/videos', {
+      headers: {
+        'Client-ID': CLIENT_ID,
+        Authorization: `Bearer ${token}`,
+      },
+      params: {
+        user_id: user.id,
+        type: 'archive',
+        first: 3,
+      },
+    });
 
+    const titles = vidsRes.data.data.map(v => v.title || '');
+    const vibe = createVibeFromTitles(titles);
+
+    // Get channel info
+    const channelRes = await axios.get('https://api.twitch.tv/helix/channels', {
+      headers: {
+        'Client-ID': CLIENT_ID,
+        Authorization: `Bearer ${token}`,
+      },
+      params: { broadcaster_id: user.id },
+    });
+
+    const game = channelRes.data.data[0]?.game_name || 'something fun';
+
+    const msg = `🌟 Check out @${user.display_name}! They bring ${vibe} and usually stream ${game}. About them: "${about}". Show them love ➡ https://twitch.tv/${user.login}`;
+    res.send(safeTrim(msg));
+  } catch (err) {
+    console.error('❌ Error:', err.message);
+    res.status(500).send('⚠️ Something went wrong.');
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server is running on port ${PORT}`);
+});
