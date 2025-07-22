@@ -30,7 +30,7 @@ app.get('/shoutout/:username', async (req, res) => {
   try {
     const token = await getAppToken();
 
-    // Get user info
+    // Get user info & their About Me
     const userRes = await axios.get('https://api.twitch.tv/helix/users', {
       headers: {
         'Client-ID': CLIENT_ID,
@@ -44,8 +44,29 @@ app.get('/shoutout/:username', async (req, res) => {
     }
 
     const user = userRes.data.data[0];
+    const aboutMe = user.description || 'No About Me info available.';
 
-    // Get channel info (description/about + game)
+    // Get last 3 past stream titles from videos
+    const videosRes = await axios.get('https://api.twitch.tv/helix/videos', {
+      headers: {
+        'Client-ID': CLIENT_ID,
+        Authorization: `Bearer ${token}`,
+      },
+      params: {
+        user_id: user.id,
+        type: 'archive', // past broadcasts
+        first: 3,
+        sort: 'time',
+      },
+    });
+
+    const videos = videosRes.data.data || [];
+
+    const recentTitles = videos.length
+      ? videos.map((v) => `"${v.title}"`).join(', ')
+      : 'No recent streams found.';
+
+    // Get last played game from channel info
     const channelRes = await axios.get('https://api.twitch.tv/helix/channels', {
       headers: {
         'Client-ID': CLIENT_ID,
@@ -55,14 +76,9 @@ app.get('/shoutout/:username', async (req, res) => {
     });
 
     const channel = channelRes.data.data[0];
+    const gameName = channel?.game_name || 'Unknown game';
 
-    // Channel description (intro/about)
-    const description = channel.description || 'No description available';
-
-    // Last game played
-    const gameName = channel.game_name || 'Unknown game';
-
-    const message = `🌟 Shoutout to @${user.display_name}! Here’s a little about them: "${description}" They’re known for playing **${gameName}**. Check them out: https://twitch.tv/${user.login}`;
+    const message = `🌟 Shoutout to @${user.display_name}! About them: "${aboutMe}" They’ve been rocking games like **${gameName}**. Recent streams: ${recentTitles}. Check them out here: https://twitch.tv/${user.login}`;
 
     res.send(message);
   } catch (error) {
