@@ -8,7 +8,6 @@ const CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 let accessToken = '';
 let tokenExpiry = 0;
 
-// Fetch and cache Twitch app access token
 async function getAppToken() {
   if (Date.now() < tokenExpiry) return accessToken;
 
@@ -46,7 +45,7 @@ app.get('/shoutout/:username', async (req, res) => {
 
     const user = userRes.data.data[0];
 
-    // Get channel info (description/title + game)
+    // Get channel info (description/about + game)
     const channelRes = await axios.get('https://api.twitch.tv/helix/channels', {
       headers: {
         'Client-ID': CLIENT_ID,
@@ -57,7 +56,13 @@ app.get('/shoutout/:username', async (req, res) => {
 
     const channel = channelRes.data.data[0];
 
-    const message = `🎮 Shoutout to @${user.display_name}! They're streaming "${channel.title}" playing **${channel.game_name}**. Check them out: https://twitch.tv/${user.login}`;
+    // Channel description (intro/about)
+    const description = channel.description || 'No description available';
+
+    // Last game played
+    const gameName = channel.game_name || 'Unknown game';
+
+    const message = `🌟 Shoutout to @${user.display_name}! Here’s a little about them: "${description}" They’re known for playing **${gameName}**. Check them out: https://twitch.tv/${user.login}`;
 
     res.send(message);
   } catch (error) {
