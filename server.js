@@ -34,41 +34,83 @@ function analyzeTone(about, titles, clips) {
   return 'unique and entertaining';
 }
 
+function findKeywords(text) {
+  const keywords = [];
+  if (/speedrun/.test(text)) keywords.push('speedrunner');
+  if (/variety/.test(text)) keywords.push('variety streamer');
+  if (/community/.test(text)) keywords.push('community-focused');
+  if (/casual/.test(text)) keywords.push('casual gamer');
+  if (/competitive/.test(text)) keywords.push('competitive player');
+  return keywords;
+}
+
 function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
 function composeTailoredShoutout(displayName, game, about, streamTitles, clipTitles) {
+  const aboutLower = about.toLowerCase();
   const tone = analyzeTone(about, streamTitles, clipTitles);
+  const keywords = findKeywords(aboutLower);
+
   const aboutSnippet = about ? about.split('. ')[0] : '';
-  
+
+  // Intros
   const intros = [
-    `🌟 Dive into @${displayName}'s ${tone} streams, mainly playing ${game}.`,
-    `🌟 Catch @${displayName} for some ${tone} vibes focused on ${game}.`,
-    `🌟 Join @${displayName} where ${tone} gameplay and community come together with ${game}.`
+    `🌟 Step into @${displayName}'s world—a ${tone} streamer shining in ${game}.`,
+    `🌟 @${displayName} is your go-to for ${tone} gameplay, streaming ${game} and beyond.`,
+    `🌟 If you love ${game} with a ${tone} touch, @${displayName} has got you covered.`
   ];
-  
+
+  // Personality lines from keywords
+  const personalityLines = [];
+  if (keywords.includes('speedrunner')) {
+    personalityLines.push(`Known for lightning-fast runs and impressive precision.`);
+  }
+  if (keywords.includes('variety streamer')) {
+    personalityLines.push(`You never know what game they’ll dive into next — always a surprise!`);
+  }
+  if (keywords.includes('community-focused')) {
+    personalityLines.push(`Building an awesome community where everyone’s welcome.`);
+  }
+  if (keywords.includes('casual gamer')) {
+    personalityLines.push(`Keeping things laid-back and fun, perfect for casual viewers.`);
+  }
+  if (keywords.includes('competitive player')) {
+    personalityLines.push(`Bringing serious competition and top-tier plays.`);
+  }
+
+  // About snippet variations
   const aboutPhrases = aboutSnippet ? [
-    `"${aboutSnippet}" is how they describe their stream.`,
-    `They like to say: "${aboutSnippet}".`,
-    `Here’s a little about them: "${aboutSnippet}".`
+    `They describe their channel as: "${aboutSnippet}"`,
+    `"${aboutSnippet}" — that’s how @${displayName} rolls.`,
+    `Here’s what they say about their stream: "${aboutSnippet}"`
   ] : [];
 
-  const clipHighlights = clipTitles.length
-    ? `Their clips capture moments that truly show why their community loves them.`
-    : '';
+  // Clip-inspired phrases
+  let clipLine = '';
+  if (clipTitles.length) {
+    clipLine = randomChoice([
+      `Their clips show off some truly unforgettable moments.`,
+      `Check out their clips for highlights of their epic (and sometimes hilarious) gameplay.`,
+      `From clutch wins to funny fails, their clips have it all.`
+    ]);
+  }
 
-  const closing = [
-    `Catch their streams live at https://twitch.tv/${displayName.toLowerCase()}`,
-    `Check them out here: https://twitch.tv/${displayName.toLowerCase()}`,
-    `Don’t miss out! https://twitch.tv/${displayName.toLowerCase()}`
+  // Closing phrases
+  const closings = [
+    `Don’t miss out — catch @${displayName} live at https://twitch.tv/${displayName.toLowerCase()}`,
+    `Hop into the chat and join the fun: https://twitch.tv/${displayName.toLowerCase()}`,
+    `Ready for great times? Tune in live: https://twitch.tv/${displayName.toLowerCase()}`
   ];
 
+  // Compose final message parts
   const parts = [
     randomChoice(intros),
     randomChoice(aboutPhrases),
-    clipHighlights,
-    randomChoice(closing)
+    personalityLines.length ? personalityLines.join(' ') : '',
+    clipLine,
+    randomChoice(closings)
   ].filter(Boolean);
 
   return parts.join(' ');
@@ -92,7 +134,7 @@ app.get('/shoutout/:username', async (req, res) => {
     const displayName = user.display_name;
     const about = user.description?.trim() || '';
 
-    // Fetch last 3 streams (videos)
+    // Fetch last 3 videos
     const vidsRes = await axios.get('https://api.twitch.tv/helix/videos', {
       headers: { 'Client-ID': CLIENT_ID, Authorization: `Bearer ${token}` },
       params: { user_id: user.id, type: 'archive', first: 3 },
@@ -113,7 +155,7 @@ app.get('/shoutout/:username', async (req, res) => {
     });
     const game = channelRes.data.data[0]?.game_name || 'various games';
 
-    // Compose shoutout message
+    // Compose message
     const message = composeTailoredShoutout(displayName, game, about, vidTitles, clipTitles);
 
     res.send(message);
