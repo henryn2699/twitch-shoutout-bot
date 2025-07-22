@@ -87,14 +87,18 @@ function composeTailoredShoutout(displayName, game, about, streamTitles, clipTit
     `Here’s what they say about their stream: "${aboutSnippet}"`
   ] : [];
 
-  // Clip-inspired phrases
-  let clipLine = '';
+  // Stream invites instead of clips
+  let streamInvite = '';
   if (clipTitles.length) {
-    clipLine = randomChoice([
-      `Their clips show off some truly unforgettable moments.`,
-      `Check out their clips for highlights of their epic (and sometimes hilarious) gameplay.`,
-      `From clutch wins to funny fails, their clips have it all.`
+    streamInvite = randomChoice([
+      `Check out their stream for a blend of epic gameplay and great community vibes.`,
+      `Their streams are packed with moments that keep the chat buzzing.`,
+      `Dive into their stream to catch everything from clutch plays to hilarious fun.`,
+      `Join their stream for exciting games and an awesome community experience.`,
+      `Their streams bring a perfect mix of skill and entertainment — check it out!`
     ]);
+  } else {
+    streamInvite = `Catch their stream for engaging content and good times.`;
   }
 
   // Closing phrases
@@ -109,7 +113,7 @@ function composeTailoredShoutout(displayName, game, about, streamTitles, clipTit
     randomChoice(intros),
     randomChoice(aboutPhrases),
     personalityLines.length ? personalityLines.join(' ') : '',
-    clipLine,
+    streamInvite,
     randomChoice(closings)
   ].filter(Boolean);
 
