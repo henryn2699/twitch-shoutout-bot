@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: twitch-shoutout-bot
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TWITCH_CLIENT_ID
+        value: 5nofp3imv3s1rhyxw8ytlijdq4644t
+      - key: TWITCH_CLIENT_SECRET
+        value: ev322bl2gr0ginp8rimid01taifvzn
+      - key: TWITCH_OAUTH_TOKEN
+        value: ""
