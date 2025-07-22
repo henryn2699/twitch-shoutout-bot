@@ -1,7 +1,7 @@
 {
   "name": "twitch-shoutout-bot",
   "version": "1.0.0",
-  "description": "A Twitch shoutout bot that crafts fun messages with emotes",
+  "description": "Twitch shoutout bot with advanced natural language messages",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
