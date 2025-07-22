@@ -9,18 +9,6 @@ const CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 let accessToken = '';
 let tokenExpiry = 0;
 
-const synonyms = {
-  cozy: ['warm', 'relaxing', 'chill', 'comforting'],
-  competitive: ['intense', 'hardcore', 'dedicated', 'focused'],
-  spooky: ['thrilling', 'eerie', 'haunting', 'chilling'],
-  fun: ['energetic', 'wild', 'lively', 'exciting'],
-  anime: ['manga-inspired', 'Japanese-culture-loving', 'vibrant', 'colorful'],
-};
-
-function randomFrom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 async function getAccessToken() {
   if (Date.now() < tokenExpiry && accessToken) return accessToken;
 
@@ -37,76 +25,53 @@ async function getAccessToken() {
   return accessToken;
 }
 
-function extractThemes(text) {
-  const themes = new Set();
-  const lower = text.toLowerCase();
-  if (lower.match(/cozy|chill|relax|calm/)) themes.add('cozy');
-  if (lower.match(/competit|ranked|grind|sweat/)) themes.add('competitive');
-  if (lower.match(/horror|spooky|scary|thrill/)) themes.add('spooky');
-  if (lower.match(/fun|wild|chaos|crazy/)) themes.add('fun');
-  if (lower.match(/anime|gacha|manga/)) themes.add('anime');
-  if (themes.size === 0) themes.add('fun'); // fallback
-  return Array.from(themes);
+function analyzeTone(about, titles, clips) {
+  const text = (about + ' ' + titles.join(' ') + ' ' + clips.join(' ')).toLowerCase();
+  if (text.match(/funny|laugh|joke|meme|fail/)) return 'lighthearted and fun';
+  if (text.match(/competitive|rank|clutch|win/)) return 'intense and skillful';
+  if (text.match(/chill|relax|cozy|calm/)) return 'relaxing and welcoming';
+  if (text.match(/story|creative|art|music/)) return 'creative and engaging';
+  return 'unique and entertaining';
 }
 
-function generateClipSentences(clipTitles) {
-  if (!clipTitles.length) return '';
-
-  const sentences = [];
-
-  clipTitles.forEach(title => {
-    const lower = title.toLowerCase();
-
-    if (lower.includes('fail') || lower.includes('funny')) {
-      sentences.push(`Expect laughs from moments like "${title}"`);
-    } else if (lower.includes('epic') || lower.includes('clutch') || lower.includes('insane')) {
-      sentences.push(`Don't miss their clutch plays such as "${title}"`);
-    } else if (lower.includes('surprise') || lower.includes('unexpected')) {
-      sentences.push(`They always keep viewers on their toes, like in "${title}"`);
-    } else if (lower.includes('scary') || lower.includes('jump scare') || lower.includes('thrilling')) {
-      sentences.push(`Get ready for thrills with clips like "${title}"`);
-    } else {
-      sentences.push(`One memorable moment is "${title}"`);
-    }
-  });
-
-  return sentences.slice(0, 3).join('. ') + '.';
+function randomChoice(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function composeDescription(displayName, game, about, streamTitles, clipTitles) {
-  const combinedText = [about, ...streamTitles, ...clipTitles].join(' ');
-  const themes = extractThemes(combinedText);
-  const themePhrases = themes.map(t => randomFrom(synonyms[t] || [t]));
+function composeTailoredShoutout(displayName, game, about, streamTitles, clipTitles) {
+  const tone = analyzeTone(about, streamTitles, clipTitles);
+  const aboutSnippet = about ? about.split('. ')[0] : '';
+  
+  const intros = [
+    `🌟 Dive into @${displayName}'s ${tone} streams, mainly playing ${game}.`,
+    `🌟 Catch @${displayName} for some ${tone} vibes focused on ${game}.`,
+    `🌟 Join @${displayName} where ${tone} gameplay and community come together with ${game}.`
+  ];
+  
+  const aboutPhrases = aboutSnippet ? [
+    `"${aboutSnippet}" is how they describe their stream.`,
+    `They like to say: "${aboutSnippet}".`,
+    `Here’s a little about them: "${aboutSnippet}".`
+  ] : [];
 
-  const introOptions = [
-    `🌟 Dive into the ${themePhrases.join(' and ')} streams of @${displayName}!`,
-    `🌟 Join @${displayName} for some truly ${themePhrases.join(' & ')} gameplay!`,
-    `🌟 Experience ${themePhrases.join(', ')} vibes with @${displayName}!`,
+  const clipHighlights = clipTitles.length
+    ? `Their clips capture moments that truly show why their community loves them.`
+    : '';
+
+  const closing = [
+    `Catch their streams live at https://twitch.tv/${displayName.toLowerCase()}`,
+    `Check them out here: https://twitch.tv/${displayName.toLowerCase()}`,
+    `Don’t miss out! https://twitch.tv/${displayName.toLowerCase()}`
   ];
 
-  const gameSentenceOptions = [
-    `They mostly play ${game}, bringing excitement every session.`,
-    `You’ll catch them immersed in ${game}, delivering top-notch content.`,
-    `Their favorite playground is ${game}, where every moment counts.`,
-  ];
+  const parts = [
+    randomChoice(intros),
+    randomChoice(aboutPhrases),
+    clipHighlights,
+    randomChoice(closing)
+  ].filter(Boolean);
 
-  const aboutSentenceOptions = [
-    about ? `"${about}"` : 'They are known for engaging and entertaining streams.',
-  ];
-
-  const clipSentence = generateClipSentences(clipTitles);
-
-  const clipSentenceOptions = [
-    clipSentence || 'Their clips capture unforgettable moments and highlights.',
-  ];
-
-  return [
-    randomFrom(introOptions),
-    randomFrom(gameSentenceOptions),
-    randomFrom(aboutSentenceOptions),
-    randomFrom(clipSentenceOptions),
-    `Check them out here: https://twitch.tv/${displayName.toLowerCase()}`
-  ].join(' ');
+  return parts.join(' ');
 }
 
 app.get('/shoutout/:username', async (req, res) => {
@@ -125,7 +90,6 @@ app.get('/shoutout/:username', async (req, res) => {
 
     const user = userRes.data.data[0];
     const displayName = user.display_name;
-    const loginName = user.login;
     const about = user.description?.trim() || '';
 
     // Fetch last 3 streams (videos)
@@ -149,8 +113,8 @@ app.get('/shoutout/:username', async (req, res) => {
     });
     const game = channelRes.data.data[0]?.game_name || 'various games';
 
-    // Compose message
-    const message = composeDescription(displayName, game, about, vidTitles, clipTitles);
+    // Compose shoutout message
+    const message = composeTailoredShoutout(displayName, game, about, vidTitles, clipTitles);
 
     res.send(message);
   } catch (err) {
