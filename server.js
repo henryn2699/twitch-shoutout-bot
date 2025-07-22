@@ -24,13 +24,32 @@ async function getAppToken() {
   return accessToken;
 }
 
+function createVibeFromTitles(titles) {
+  const combined = titles.map(t => t.toLowerCase()).join(' ');
+  const keywords = [];
+
+  if (combined.includes('horror') || combined.includes('spooky')) keywords.push('spooky vibes 👻');
+  if (combined.includes('cozy') || combined.includes('chill') || combined.includes('relax')) keywords.push('cozy streams ☕');
+  if (combined.includes('ranked') || combined.includes('grind') || combined.includes('sweat')) keywords.push('competitive grind 💪');
+  if (combined.includes('anime') || combined.includes('gacha')) keywords.push('anime and gacha rolls 🎴');
+  if (combined.includes('chaos') || combined.includes('fun') || combined.includes('wild')) keywords.push('chaotic fun 🎉');
+
+  if (keywords.length === 0) keywords.push('great vibes ✨');
+
+  return keywords.join(', ');
+}
+
+function safeTrim(str, limit) {
+  return str.length > limit ? str.slice(0, limit - 3) + '...' : str;
+}
+
 app.get('/shoutout/:username', async (req, res) => {
   const username = req.params.username.toLowerCase();
 
   try {
     const token = await getAppToken();
 
-    // Get user info & their About Me
+    // Fetch user info
     const userRes = await axios.get('https://api.twitch.tv/helix/users', {
       headers: {
         'Client-ID': CLIENT_ID,
@@ -40,34 +59,27 @@ app.get('/shoutout/:username', async (req, res) => {
     });
 
     if (!userRes.data.data.length) {
-      return res.send(`❌ Can't find user @${username}.`);
+      return res.send(`❌ Could not find @${username}`);
     }
 
     const user = userRes.data.data[0];
-    const aboutMe = user.description || 'No About Me info available.';
+    let about = user.description || 'an awesome streamer!';
+    about = safeTrim(about, 100);
 
-    // Get last 3 past stream titles from videos
-    const videosRes = await axios.get('https://api.twitch.tv/helix/videos', {
+    // Fetch last 3 videos
+    const vidsRes = await axios.get('https://api.twitch.tv/helix/videos', {
       headers: {
         'Client-ID': CLIENT_ID,
         Authorization: `Bearer ${token}`,
       },
-      params: {
-        user_id: user.id,
-        type: 'archive', // past broadcasts
-        first: 3,
-        sort: 'time',
-      },
+      params: { user_id: user.id, type: 'archive', first: 3 },
     });
 
-    const videos = videosRes.data.data || [];
+    const titles = vidsRes.data.data.map(v => v.title);
+    const vibe = createVibeFromTitles(titles);
 
-    const recentTitles = videos.length
-      ? videos.map((v) => `"${v.title}"`).join(', ')
-      : 'No recent streams found.';
-
-    // Get last played game from channel info
-    const channelRes = await axios.get('https://api.twitch.tv/helix/channels', {
+    // Fetch current game
+    const chanRes = await axios.get('https://api.twitch.tv/helix/channels', {
       headers: {
         'Client-ID': CLIENT_ID,
         Authorization: `Bearer ${token}`,
@@ -75,15 +87,23 @@ app.get('/shoutout/:username', async (req, res) => {
       params: { broadcaster_id: user.id },
     });
 
-    const channel = channelRes.data.data[0];
-    const gameName = channel?.game_name || 'Unknown game';
+    const game = chanRes.data.data[0]?.game_name || 'something fun';
 
-    const message = `🌟 Shoutout to @${user.display_name}! About them: "${aboutMe}" They’ve been rocking games like **${gameName}**. Recent streams: ${recentTitles}. Check them out here: https://twitch.tv/${user.login}`;
+    // Compose fun shoutout
+    let msg = `🌟 Check out @${user.display_name}! They bring ${vibe} and stream games like ${game}. About them: "${about}". Show them love ➡ https://twitch.tv/${user.login}`;
 
-    res.send(message);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('⚠️ Error fetching shoutout info. Please try again later.');
+    msg = safeTrim(msg, 445);
+
+    res.send(msg);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('⚠️ Error fetching shoutout info.');
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`✅ Bot live on port ${PORT}`));
+
   }
 });
 
