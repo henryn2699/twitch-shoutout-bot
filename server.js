@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+
 const app = express();
 
 const CLIENT_ID = process.env.TWITCH_CLIENT_ID;
@@ -8,12 +9,17 @@ const CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
 let accessToken = '';
 let tokenExpiry = 0;
 
-const channelEmotes = {
-  'cozygamer': 'Kappa Keepo PogChamp',
-  'shroud': 'PogChamp Kappa CoolCat',
-  'pokimane': 'PogU Kappa BlessRNG',
-  'wildcard': 'LUL PogChamp PepeHands',
+const synonyms = {
+  cozy: ['warm', 'relaxing', 'chill', 'comforting'],
+  competitive: ['intense', 'hardcore', 'dedicated', 'focused'],
+  spooky: ['thrilling', 'eerie', 'haunting', 'chilling'],
+  fun: ['energetic', 'wild', 'lively', 'exciting'],
+  anime: ['manga-inspired', 'Japanese-culture-loving', 'vibrant', 'colorful'],
 };
+
+function randomFrom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 async function getAccessToken() {
   if (Date.now() < tokenExpiry && accessToken) return accessToken;
@@ -31,8 +37,76 @@ async function getAccessToken() {
   return accessToken;
 }
 
-function safeTrim(str, max = 400) {
-  return str.length > max ? str.slice(0, max - 3) + '...' : str;
+function extractThemes(text) {
+  const themes = new Set();
+  const lower = text.toLowerCase();
+  if (lower.match(/cozy|chill|relax|calm/)) themes.add('cozy');
+  if (lower.match(/competit|ranked|grind|sweat/)) themes.add('competitive');
+  if (lower.match(/horror|spooky|scary|thrill/)) themes.add('spooky');
+  if (lower.match(/fun|wild|chaos|crazy/)) themes.add('fun');
+  if (lower.match(/anime|gacha|manga/)) themes.add('anime');
+  if (themes.size === 0) themes.add('fun'); // fallback
+  return Array.from(themes);
+}
+
+function generateClipSentences(clipTitles) {
+  if (!clipTitles.length) return '';
+
+  const sentences = [];
+
+  clipTitles.forEach(title => {
+    const lower = title.toLowerCase();
+
+    if (lower.includes('fail') || lower.includes('funny')) {
+      sentences.push(`Expect laughs from moments like "${title}"`);
+    } else if (lower.includes('epic') || lower.includes('clutch') || lower.includes('insane')) {
+      sentences.push(`Don't miss their clutch plays such as "${title}"`);
+    } else if (lower.includes('surprise') || lower.includes('unexpected')) {
+      sentences.push(`They always keep viewers on their toes, like in "${title}"`);
+    } else if (lower.includes('scary') || lower.includes('jump scare') || lower.includes('thrilling')) {
+      sentences.push(`Get ready for thrills with clips like "${title}"`);
+    } else {
+      sentences.push(`One memorable moment is "${title}"`);
+    }
+  });
+
+  return sentences.slice(0, 3).join('. ') + '.';
+}
+
+function composeDescription(displayName, game, about, streamTitles, clipTitles) {
+  const combinedText = [about, ...streamTitles, ...clipTitles].join(' ');
+  const themes = extractThemes(combinedText);
+  const themePhrases = themes.map(t => randomFrom(synonyms[t] || [t]));
+
+  const introOptions = [
+    `🌟 Dive into the ${themePhrases.join(' and ')} streams of @${displayName}!`,
+    `🌟 Join @${displayName} for some truly ${themePhrases.join(' & ')} gameplay!`,
+    `🌟 Experience ${themePhrases.join(', ')} vibes with @${displayName}!`,
+  ];
+
+  const gameSentenceOptions = [
+    `They mostly play ${game}, bringing excitement every session.`,
+    `You’ll catch them immersed in ${game}, delivering top-notch content.`,
+    `Their favorite playground is ${game}, where every moment counts.`,
+  ];
+
+  const aboutSentenceOptions = [
+    about ? `"${about}"` : 'They are known for engaging and entertaining streams.',
+  ];
+
+  const clipSentence = generateClipSentences(clipTitles);
+
+  const clipSentenceOptions = [
+    clipSentence || 'Their clips capture unforgettable moments and highlights.',
+  ];
+
+  return [
+    randomFrom(introOptions),
+    randomFrom(gameSentenceOptions),
+    randomFrom(aboutSentenceOptions),
+    randomFrom(clipSentenceOptions),
+    `Check them out here: https://twitch.tv/${displayName.toLowerCase()}`
+  ].join(' ');
 }
 
 app.get('/shoutout/:username', async (req, res) => {
@@ -41,6 +115,7 @@ app.get('/shoutout/:username', async (req, res) => {
   try {
     const token = await getAccessToken();
 
+    // Fetch user info
     const userRes = await axios.get('https://api.twitch.tv/helix/users', {
       headers: { 'Client-ID': CLIENT_ID, Authorization: `Bearer ${token}` },
       params: { login: username },
@@ -53,29 +128,29 @@ app.get('/shoutout/:username', async (req, res) => {
     const loginName = user.login;
     const about = user.description?.trim() || '';
 
+    // Fetch last 3 streams (videos)
+    const vidsRes = await axios.get('https://api.twitch.tv/helix/videos', {
+      headers: { 'Client-ID': CLIENT_ID, Authorization: `Bearer ${token}` },
+      params: { user_id: user.id, type: 'archive', first: 3 },
+    });
+    const vidTitles = vidsRes.data.data.map(v => v.title);
+
+    // Fetch last 3 clips
+    const clipsRes = await axios.get('https://api.twitch.tv/helix/clips', {
+      headers: { 'Client-ID': CLIENT_ID, Authorization: `Bearer ${token}` },
+      params: { broadcaster_id: user.id, first: 3 },
+    });
+    const clipTitles = clipsRes.data.data.map(c => c.title);
+
+    // Fetch current game
     const channelRes = await axios.get('https://api.twitch.tv/helix/channels', {
       headers: { 'Client-ID': CLIENT_ID, Authorization: `Bearer ${token}` },
       params: { broadcaster_id: user.id },
     });
+    const game = channelRes.data.data[0]?.game_name || 'various games';
 
-    const game = channelRes.data.data[0]?.game_name || 'awesome content';
-
-    // Simple vibes based on keywords in about
-    const aboutLower = about.toLowerCase();
-    let vibes = [];
-    if (aboutLower.match(/cozy|chill|relax/)) vibes.push('cozy vibes ☕');
-    if (aboutLower.match(/horror|spooky|scary/)) vibes.push('spooky thrills 👻');
-    if (aboutLower.match(/ranked|competitive|grind/)) vibes.push('competitive grind 💪');
-    if (aboutLower.match(/fun|chaos|wild/)) vibes.push('wild fun 🎉');
-    if (aboutLower.match(/anime|gacha|manga/)) vibes.push('anime madness 🎴');
-    if (vibes.length === 0) vibes.push('awesome energy ✨');
-    vibes = vibes.join(', ');
-
-    let emotes = channelEmotes[username] ? ` ${channelEmotes[username]}` : '';
-
-    let message = `🎉 Shoutout to @${displayName}! They bring ${vibes} and usually stream ${game}. Known for: "${about || 'amazing streams'}". Show some love ➡ https://twitch.tv/${loginName}${emotes}`;
-
-    message = safeTrim(message, 400);
+    // Compose message
+    const message = composeDescription(displayName, game, about, vidTitles, clipTitles);
 
     res.send(message);
   } catch (err) {
